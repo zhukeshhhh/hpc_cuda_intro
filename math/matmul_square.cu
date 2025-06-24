@@ -18,10 +18,13 @@ __global__ void matrixMulGpu(int *a, int *b, int *c, int n) {
 
 void matrixMulCpu(int *a, int *b, int *c, int n) {
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) [
+        for (int j = 0; j < n; j++) {
             int temp_sum = 0;
-            for (int k = 0; k < )
-        ]
+            for (int k = 0; k < n; k++) {
+                temp_sum += a[i * n + k] * b[k * n + j];
+            }
+            c[j + i * n] = temp_sum;
+        }
     }
 }
 
@@ -58,6 +61,7 @@ int main() {
     init_matrix(h_a, n);
     init_matrix(h_b, n);
 
+
     cudaMemcpy( d_a, h_a, bytes, cudaMemcpyHostToDevice);
     cudaMemcpy( d_b, h_b, bytes, cudaMemcpyHostToDevice);
 
@@ -71,15 +75,23 @@ int main() {
     matrixMulGpu<<<grid, threads>>>(d_a, d_b, d_c, n); // launch kernel
 
     cudaMemcpy( h_c, d_c, bytes, cudaMemcpyDeviceToHost);
-    cudaMemcpy( h_a, d_a, bytes, cudaMemcpyDeviceToHost);
-    cudaMemcpy( h_b, d_b, bytes, cudaMemcpyDeviceToHost);
 
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
-            int idx = i * n + j;
-            printf("c[%d][%d] = %d\n", i, j, h_c[idx]);
+    int *h_c_cpu = (int*)malloc(bytes);
+    matrixMulCpu(h_a, h_b, h_c_cpu, n);
+
+    // After copying h_c from GPU
+    for (int i = 0; i < n * n; i++) {
+        if (h_c[i] != h_c_cpu[i]) {
+            printf("Mismatch at index %d: GPU %d != CPU %d\n", i, h_c[i], h_c_cpu[i]);
+            break;
         }
-}
+    }
+
+
+    for (int i = 0; i < 36; i++) {
+        printf("c[%d] = %d\n", i, h_c[i]);   
+    }
+
 
 
     printf("SUCCESS!\n");
