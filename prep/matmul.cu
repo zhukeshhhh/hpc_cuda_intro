@@ -52,7 +52,7 @@ void mat_init(float* mat, int size) {
 
 int main() {
 
-    int n = 1 << 10; // 65 536
+    int n = 1 << 10;
 
     size_t bytes = n * n * sizeof(float);
 
