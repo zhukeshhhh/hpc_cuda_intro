@@ -1,8 +1,19 @@
 #include <stdio.h>
 #include <math.h>
 
-__global__ void matmul_parallel() {
-    
+__global__ void matmul_parallel_square(float* a, float* b, float* c, int n) {
+    int row = threadIdx.y + blockIdx.y * blockDim.y;
+    int col = threadIdx.x + blockIdx.x * blockDim.x;
+
+    float sum = 0;
+
+    if ((row < n) && (col < n)) {
+        // Iterate over row and column:
+        for (int k = 0; k < n; k++) {
+            sum += a[row * n + k] * b[k * n + col];
+        }
+        c[row * n + col] = sum;
+    }
 }
 
 
@@ -41,28 +52,39 @@ void mat_init(float* mat, int size) {
 
 int main() {
 
-    int size = 100;
+    int n = 1 << 10; // 65 536
 
-    size_t bytes = size * size * sizeof(float);
+    size_t bytes = n * n * sizeof(float);
 
-    float *a, *b, *c;
+    float *h_a, *h_b, *h_c;
 
-    a = (float*)malloc(bytes);
-    b = (float*)malloc(bytes);
-    c = (float*)malloc(bytes);
+    h_a = (float*)malloc(bytes);
+    h_b = (float*)malloc(bytes);
+    h_c = (float*)malloc(bytes);
+
+    float *d_a, *d_b, *d_c;
+
+    cudaMalloc(&d_a, bytes);
+    cudaMalloc(&d_b, bytes);
+    cudaMalloc(&d_c, bytes);
+    
+    dim3 THREADS(32, 32);
+    dim3 BLOCKS((n + 31) / 32, (n + 31) / 32);
 
 
-    mat_init(a, size);
-    mat_init(b, size);
+    mat_init(h_a, n);
+    mat_init(h_b, n);
 
+    cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, bytes, cudaMemcpyHostToDevice);
 
-    matmul_seq(a, b, c, size, size, size);
+    matmul_parallel_square<<<BLOCKS, THREADS>>>(d_a, d_b, d_c, n);
 
+    cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost);
 
-    for (int i = 0; i < 100; i++) {
-        printf("c[%d] = %f | a = %f | b = %f \n", i, c[i], a[i], b[i]);
+    for(int i = 0; i < 1500; i++) {
+        printf("c[%d] = %f\n", i, h_c[i]);
     }
-
 
     return 0;
 }
