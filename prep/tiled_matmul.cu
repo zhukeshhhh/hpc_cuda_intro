@@ -2,8 +2,8 @@
 #include <math.h>
 
 __global__ void tiledMatMul(float *a, float *b, float *c, int n, int tile_size) {
-    // twi statically-sized pieces of shared memory
-    __shared__ int A[]
+    // two statically-sized pieces of shared memory
+    
 }
 
 void mat_init(float* mat, int size) {
