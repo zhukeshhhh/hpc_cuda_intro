@@ -1,60 +1,9 @@
 #include <stdio.h>
 #include <math.h>
 
-__global__ void matmul_parallel_square(float* a, float* b, float* c, int n) {
-    int row = threadIdx.y + blockIdx.y * blockDim.y;
-    int col = threadIdx.x + blockIdx.x * blockDim.x;
-
-    float sum = 0;
-
-    if ((row < n) && (col < n)) {
-        // Iterate over row and column:
-        for (int k = 0; k < n; k++) {
-            sum += a[row * n + k] * b[k * n + col];
-        }
-        c[row * n + col] = sum;
-    }
-}
-
-__global__ void matmul_parallel(float* a, float* b, float* c, int n, int k, int m) {
-    int row = threadIdx.y + blockIdx.y * blockDim.y;
-    int col = threadIdx.x + blockIdx.x * blockDim.x;
-
-    float sum = 0;
-
-    if ((row < n) && (col < m)) {
-        for (int i = 0; i < k; i++) {
-            sum += a[row * k + i] * b[i * m + col];
-        }
-        c[row * m + col] = sum;
-    }
-}
-
-
-void matmul_seq(float* a, float* b, float* c, int n, int k,int m) {
-    for (int row = 0; row < n; row++) {
-        for (int col = 0; col < m; col++) {
-            float sum = 0;
-            for (int i = 0; i < k; i++) {
-                sum += a[row * k + i] * b[m * i + col];
-            }
-            c[row * m + col] = sum;
-        }
-    }
-}
-
-
-
-void matmul_seq_square(float* a, float* b, float* c, int n) {
-    for (int row = 0; row < n; row++) {
-        for (int col = 0; col < n; col ++) {
-            float sum = 0;
-            for (int k = 0; k < n; k++) {
-                sum += a[row * n + k] * b[k * n + col];
-            }
-            c[row * n + col] = sum;
-        }
-    }
+__global__ void tiledMatMul(float *a, float *b, float *c, int n, int tile_size) {
+    // twi statically-sized pieces of shared memory
+    __shared__ int A[]
 }
 
 void mat_init(float* mat, int size) {
