@@ -96,7 +96,7 @@ int main() {
 
     cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost);
 
-    for(int i = 0; i < 1500; i++) {
+    for(int i = 0; i < 150; i++) {
         printf("c[%d] = %f\n", i, h_c[i]);
     }
 

@@ -1,0 +1,19 @@
+Plan for paper on topic "GPU Programming"
+
+Abstract
+1) Introduction
+    * What this article is about (Why GPU, GPU arch, abstraction, Programming model, examples, optimization)
+2) GPU Hardware Achitecture
+3) SIMT
+    * GridB
+    * Blocks
+    * Threads
+    * Memory Hierarchy
+
+4) Programming model
+5) Programming examples
+    * Indexing, launching a kernel
+    * Vector add
+    * Vector add Unified Memory
+    * Matrix Multiplication
+    * Tiled Matrix Multiplication

@@ -34,7 +34,7 @@ int main() {
 
 
     int numberOfBlocks = 64;
-    int numberOfThreadsPerBlock = 1024;
+    int numberOfThreadsPerBlock = 256;
 
     vectorInit<<<numberOfBlocks, numberOfThreadsPerBlock>>>(d_a, n);
     vectorInit<<<numberOfBlocks, numberOfThreadsPerBlock>>>(d_b, n);
