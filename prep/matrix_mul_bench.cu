@@ -29,7 +29,7 @@ __global__ void matMulNaive(const int* A, const int* B, int* C, int N) {
 }
 
 // tiled shared‑memory kernel
-const int TILE = 32;
+const int TILE = 16;
 __global__ void matMulTiled(const int* A, const int* B, int* C, int N) {
     __shared__ int sA[TILE][TILE];
     __shared__ int sB[TILE][TILE];
@@ -58,7 +58,7 @@ __global__ void matMulTiled(const int* A, const int* B, int* C, int N) {
 }
 
 int main() {
-    auto sizes = makeTestSizes(256, 16384);
+    auto sizes = makeTestSizes(1024, 16384);
     std::ofstream csv("benchmark.csv");
     csv << "N,naive_ms,tiled_ms\n";
 
