@@ -17,8 +17,8 @@ with open(csv_file, 'r') as f:
 
 # ==== ГРАФИК ВРЕМЕНИ ====
 plt.figure(figsize=(8, 5))
-plt.plot(Ns, naive_times, marker='o', label='Naive')
-plt.plot(Ns, tiled_times, marker='o', label='Tiled 32x32')
+plt.plot(Ns, naive_times, label='Naive')
+plt.plot(Ns, tiled_times, label='Tiled 32x32')
 plt.xlabel('Matrix dimension N')
 plt.ylabel('Execution time (ms)')
 plt.title('CUDA Matrix Multiplication: Naive vs Tiled Shared Memory\n(averaged over multiple runs)')

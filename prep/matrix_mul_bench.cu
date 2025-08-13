@@ -62,7 +62,7 @@ int main() {
     std::ofstream csv("benchmark.csv");
     csv << "N,naive_ms,tiled_ms\n";
 
-    const int numRuns = 5; // количество повторов на каждое N
+    const int numRuns = 10;
 
     // -------- Warmup GPU --------
     {
@@ -84,7 +84,6 @@ int main() {
         cudaFree(dB);
         cudaFree(dC);
     }
-    // ----------------------------
 
     for (int N : sizes) {
         size_t bytes = size_t(N) * N * sizeof(int);
