@@ -4,14 +4,15 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <cmath>
 
 using std::cout;
 using std::generate;
 using std::vector;
 
-vector<int> makeTestSizes(int start, int end) {
+vector<int> makeTestSizes(int start, int end, int step) {
     vector<int> sizes;
-    for (int n = start; n <= end; n += 256)
+    for (int n = start; n <= end; n += step)
         sizes.push_back(n);
     return sizes;
 }
@@ -28,7 +29,7 @@ __global__ void matMulNaive(const int* A, const int* B, int* C, int N) {
     }
 }
 
-// tiled shared-memory kernel
+// tiled kernel
 const int TILE = 32;
 __global__ void matMulTiled(const int* A, const int* B, int* C, int N) {
     __shared__ int sA[TILE][TILE];
@@ -57,95 +58,82 @@ __global__ void matMulTiled(const int* A, const int* B, int* C, int N) {
         C[row * N + col] = tmp;
 }
 
-int main() {
-    auto sizes = makeTestSizes(1024, 16384);
-    std::ofstream csv("benchmark.csv");
-    csv << "N,naive_ms,tiled_ms\n";
+float benchmarkKernel(void (*kernel)(const int*, const int*, int*, int),
+                      const int* dA, const int* dB, int* dC,
+                      int N, dim3 blocks, dim3 threads, int runs) {
+    float total = 0.0f;
+    cudaEvent_t start, stop;
 
-    const int numRuns = 10;
+    for (int i = 0; i < runs; i++) {
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        cudaEventRecord(start);
 
-    // -------- Warmup GPU --------
-    {
-        int N = 512;
-        size_t bytes = size_t(N) * N * sizeof(int);
-        vector<int> hA(N * N, 1), hB(N * N, 1), hC(N * N);
-        int *dA, *dB, *dC;
-        cudaMalloc(&dA, bytes);
-        cudaMalloc(&dB, bytes);
-        cudaMalloc(&dC, bytes);
-        cudaMemcpy(dA, hA.data(), bytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(dB, hB.data(), bytes, cudaMemcpyHostToDevice);
-        dim3 threads(TILE, TILE);
-        dim3 blocks((N + TILE - 1) / TILE, (N + TILE - 1) / TILE);
-        matMulNaive<<<blocks, threads>>>(dA, dB, dC, N);
-        matMulTiled<<<blocks, threads>>>(dA, dB, dC, N);
-        cudaDeviceSynchronize();
-        cudaFree(dA);
-        cudaFree(dB);
-        cudaFree(dC);
+        // launch kernel
+        kernel<<<blocks, threads>>>(dA, dB, dC, N);
+
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        float ms;
+        cudaEventElapsedTime(&ms, start, stop);
+
+        if (i > 0) total += ms; // discard first run
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
     }
+
+    return total / (runs - 1);
+}
+
+int main() {
+    auto sizes = makeTestSizes(1024, 16384, 256);
+    std::ofstream csv("benchmark.csv");
+    csv << "N,naive_mean,tiled_mean\n";
+
+    const int numRuns = 20;  // more runs for stability
 
     for (int N : sizes) {
         size_t bytes = size_t(N) * N * sizeof(int);
 
-        // host data
-        vector<int> hA(N * N), hB(N * N), hC(N * N);
-        generate(hA.begin(), hA.end(), []() { return rand() % 100; });
-        generate(hB.begin(), hB.end(), []() { return rand() % 100; });
+        // Allocate pinned memory for consistency
+        int *hA, *hB, *hC;
+        cudaMallocHost(&hA, bytes);
+        cudaMallocHost(&hB, bytes);
+        cudaMallocHost(&hC, bytes);
 
-        // device allocations
+        generate(hA, hA + N * N, []() { return rand() % 100; });
+        generate(hB, hB + N * N, []() { return rand() % 100; });
+
+        // Device allocations
         int *dA, *dB, *dC;
         cudaMalloc(&dA, bytes);
         cudaMalloc(&dB, bytes);
         cudaMalloc(&dC, bytes);
-        cudaMemcpy(dA, hA.data(), bytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(dB, hB.data(), bytes, cudaMemcpyHostToDevice);
+        cudaMemcpy(dA, hA, bytes, cudaMemcpyHostToDevice);
+        cudaMemcpy(dB, hB, bytes, cudaMemcpyHostToDevice);
 
         dim3 threads(TILE, TILE);
         dim3 blocks((N + TILE - 1) / TILE, (N + TILE - 1) / TILE);
 
-        float total_naive = 0.0f, total_tiled = 0.0f;
+        // Warm-up for this size
+        matMulNaive<<<blocks, threads>>>(dA, dB, dC, N);
+        matMulTiled<<<blocks, threads>>>(dA, dB, dC, N);
+        cudaDeviceSynchronize();
 
-        for (int run = 0; run < numRuns; ++run) {
-            cudaEvent_t start, stop;
-            float ms;
+        // Benchmark
+        float naive_mean = benchmarkKernel(matMulNaive, dA, dB, dC, N, blocks, threads, numRuns);
+        float tiled_mean = benchmarkKernel(matMulTiled, dA, dB, dC, N, blocks, threads, numRuns);
 
-            // naive
-            cudaEventCreate(&start);
-            cudaEventCreate(&stop);
-            cudaEventRecord(start);
-            matMulNaive<<<blocks, threads>>>(dA, dB, dC, N);
-            cudaEventRecord(stop);
-            cudaEventSynchronize(stop);
-            cudaEventElapsedTime(&ms, start, stop);
-            total_naive += ms;
-            cudaEventDestroy(start);
-            cudaEventDestroy(stop);
-
-            // tiled
-            cudaEventCreate(&start);
-            cudaEventCreate(&stop);
-            cudaEventRecord(start);
-            matMulTiled<<<blocks, threads>>>(dA, dB, dC, N);
-            cudaEventRecord(stop);
-            cudaEventSynchronize(stop);
-            cudaEventElapsedTime(&ms, start, stop);
-            total_tiled += ms;
-            cudaEventDestroy(start);
-            cudaEventDestroy(stop);
-        }
-
-        float avg_naive = total_naive / numRuns;
-        float avg_tiled = total_tiled / numRuns;
-
-        // record & report
-        csv << N << "," << avg_naive << "," << avg_tiled << "\n";
-        cout << "N = " << N << " | naive(avg) = " << avg_naive
-             << " ms, tiled(avg) = " << avg_tiled << " ms\n";
+        csv << N << "," << naive_mean << "," << tiled_mean << "\n";
+        cout << "N = " << N << " | naive(avg) = " << naive_mean
+             << " ms, tiled(avg) = " << tiled_mean << " ms\n";
 
         cudaFree(dA);
         cudaFree(dB);
         cudaFree(dC);
+        cudaFreeHost(hA);
+        cudaFreeHost(hB);
+        cudaFreeHost(hC);
     }
 
     csv.close();
